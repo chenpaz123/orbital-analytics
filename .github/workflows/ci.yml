@@ -1,0 +1,41 @@
+name: Orbital Analytics CI
+
+# 1. Trigger: מתי להריץ את הצינור הזה?
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+# 2. Jobs: סדרת הפעולות לביצוע
+jobs:
+  test-and-build:
+    # על איזו מערכת הפעלה הרובוט רץ? (אנחנו בודקים על לינוקס, גם אם אתה בווינדוס)
+    runs-on: ubuntu-latest
+
+    steps:
+      # שלב 1: שכפול הקוד מהגיט למכונה של הרובוט
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # שלב 2: התקנת פייתון
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # שלב 3: התקנת התלויות (כמו שעשינו אצלך במחשב)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # שלב 4: הרצת הטסטים (רגע האמת)
+      - name: Run Tests
+        run: |
+          python -m pytest
+
+      # שלב 5: בדיקה שהדוקר נבנה בהצלחה (Smoke Test ל-Build)
+      - name: Build Docker Image
+        run: |
+          docker build . --file Dockerfile --tag orbital-app:latest
