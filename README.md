@@ -70,7 +70,7 @@ npm install
 npm run dev
 ```
 
-**🧪 Testing**
+## 🧪 Testing
 The system includes a suite of unit tests for the physics engine.
 
 ```Bash
