@@ -1,12 +1,58 @@
 from skyfield.api import EarthSatellite, load, wgs84
-from app.schemas.satellite_models import SatellitePosition
-from datetime import datetime
+from app.schemas.satellite_models import SatellitePosition, OrbitPath
+from datetime import timedelta
+import numpy as np
 
 
 class SatelliteManager:
     def __init__(self):
         # טעינת נתונים אסטרונומיים (Caching של קבצים כבדים)
         self.ts = load.timescale()
+
+    def calculate_orbit_path(
+        self, tle_line1: str, tle_line2: str, name: str, duration_minutes: int = 90
+    ) -> OrbitPath:
+        """
+        מחשב את המסלול העתידי של הלוויין ל-X דקות הקרובות.
+        """
+        satellite = EarthSatellite(tle_line1, tle_line2, name, self.ts)
+
+        # 1. קביעת נקודת ההתחלה והסיום
+        # אנחנו רוצים לראות קצת אחורה (עבר) ובעיקר קדימה (עתיד)
+        t0 = self.ts.now()
+        start_time = t0.utc_datetime() - timedelta(minutes=45)  # 45 דקות אחורה
+
+        # 2. יצירת סדרת זמנים (Vectorization)
+        # ניצור מערך של זמנים: כל דקה, למשך 90 דקות (סה"כ מסלול הקפה מלא בערך)
+        minutes = np.arange(0, duration_minutes)
+        time_array = self.ts.utc(
+            start_time.year,
+            start_time.month,
+            start_time.day,
+            start_time.hour,
+            start_time.minute + minutes,
+        )
+
+        # 3. חישוב כל המיקומים בפעולה אחת מהירה!
+        geocentric = satellite.at(time_array)
+        subpoints = wgs84.subpoint(geocentric)
+
+        # 4. המרת התוצאות לרשימה של אובייקטים
+        positions = []
+
+        # כאן אנחנו עוברים על התוצאות ומכניסים לרשימה
+        # שים לב ש-subpoints.latitude.degrees עכשיו מחזיר מערך של מספרים, לא מספר בודד
+        for i in range(len(minutes)):
+            pos = SatellitePosition(
+                sat_name=name,
+                latitude=subpoints.latitude.degrees[i],
+                longitude=subpoints.longitude.degrees[i],
+                altitude_km=subpoints.elevation.km[i],
+                timestamp=time_array[i].utc_datetime(),
+            )
+            positions.append(pos)
+
+        return OrbitPath(sat_name=name, coordinates=positions)
 
     def calculate_position(
         self, tle_line1: str, tle_line2: str, name: str
@@ -41,6 +87,51 @@ class SatelliteManager:
         except Exception as e:
             # ב-Production נרצה לרשום את זה ל-Logger
             raise ValueError(f"Failed to calculate orbit: {str(e)}")
+
+    def calculate_orbit_path(
+        self, tle_line1: str, tle_line2: str, name: str, duration_minutes: int = 120
+    ) -> OrbitPath:
+        """
+        מחשב את המסלול העתידי של הלוויין ל-X דקות הקרובות.
+        """
+        satellite = EarthSatellite(tle_line1, tle_line2, name, self.ts)
+
+        # 1. קביעת נקודת ההתחלה והסיום
+        # אנחנו רוצים לראות קצת אחורה (עבר) ובעיקר קדימה (עתיד)
+        t0 = self.ts.now()
+        start_time = t0.utc_datetime() - timedelta(minutes=45)  # 45 דקות אחורה
+
+        # 2. יצירת סדרת זמנים (Vectorization)
+        # ניצור מערך של זמנים: כל דקה, למשך 90 דקות (סה"כ מסלול הקפה מלא בערך)
+        minutes = np.arange(0, duration_minutes)
+        time_array = self.ts.utc(
+            start_time.year,
+            start_time.month,
+            start_time.day,
+            start_time.hour,
+            start_time.minute + minutes,
+        )
+
+        # 3. חישוב כל המיקומים בפעולה אחת מהירה!
+        geocentric = satellite.at(time_array)
+        subpoints = wgs84.subpoint(geocentric)
+
+        # 4. המרת התוצאות לרשימה של אובייקטים
+        positions = []
+
+        # כאן אנחנו עוברים על התוצאות ומכניסים לרשימה
+        # שים לב ש-subpoints.latitude.degrees עכשיו מחזיר מערך של מספרים, לא מספר בודד
+        for i in range(len(minutes)):
+            pos = SatellitePosition(
+                sat_name=name,
+                latitude=subpoints.latitude.degrees[i],
+                longitude=subpoints.longitude.degrees[i],
+                altitude_km=subpoints.elevation.km[i],
+                timestamp=time_array[i].utc_datetime(),
+            )
+            positions.append(pos)
+
+        return OrbitPath(sat_name=name, coordinates=positions)
 
 
 # דוגמה לבדיקה עצמית (כשתריץ את הקובץ ישירות)

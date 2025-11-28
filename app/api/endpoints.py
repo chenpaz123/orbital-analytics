@@ -1,12 +1,17 @@
 from fastapi import APIRouter, HTTPException, status
 from app.core.satellite import SatelliteManager
-from app.schemas.satellite_models import SatelliteTLERequest, SatellitePosition
+from app.schemas.satellite_models import (
+    SatelliteTLERequest,
+    SatellitePosition,
+    OrbitPath,
+)  # <-- עדכון imports
 
 router = APIRouter()
 
 # אתחול המנוע פעם אחת (Singleton) ברמת המודול
 # ב-Production מערכות מורכבות יותר משתמשים ב-Dependency Injection, אבל זה מספיק כרגע.
 manager = SatelliteManager()
+
 
 @router.post("/position", response_model=SatellitePosition)
 async def get_satellite_position(request: SatelliteTLERequest):
@@ -18,20 +23,33 @@ async def get_satellite_position(request: SatelliteTLERequest):
         position = manager.calculate_position(
             tle_line1=request.tle_line1,
             tle_line2=request.tle_line2,
-            name=request.sat_name
+            name=request.sat_name,
         )
         return position
-    
+
     except ValueError as e:
         # תרגום שגיאת לוגיקה לשגיאת HTTP תקינה (400 Bad Request)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         # שגיאה לא צפויה בשרת (500 Internal Server Error)
-        print(f"CRITICAL ERROR: {e}") # כאן נחבר בעתיד לוגר אמיתי
+        print(f"CRITICAL ERROR: {e}")  # כאן נחבר בעתיד לוגר אמיתי
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal Calculation Error"
+            detail="Internal Calculation Error",
         )
+
+
+@router.post("/orbit", response_model=OrbitPath)
+async def get_orbit_path(request: SatelliteTLERequest):
+    """
+    מקבל TLE ומחזיר סדרה של נקודות המייצגות את המסלול (עבר ועתיד).
+    """
+    try:
+        path = manager.calculate_orbit_path(
+            tle_line1=request.tle_line1,
+            tle_line2=request.tle_line2,
+            name=request.sat_name,
+        )
+        return path
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

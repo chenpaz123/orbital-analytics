@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { Entity } from "resium";
+import { Entity, useCesium } from "resium"; // <-- הוספנו את useCesium
 import { Cartesian3, Color } from "cesium";
 
-// שים לב: אנחנו מקבלים את tleData כפרמטר (Prop)
 const SatelliteEntity = ({ tleData }) => {
   const [position, setPosition] = useState(null);
+  const { viewer } = useCesium(); // <-- גישה למנוע של Cesium
 
   useEffect(() => {
-    // אם אין מידע, אל תעשה כלום
     if (!tleData) return;
+
+    // דגל כדי לדעת אם זו הפעם הראשונה שאנחנו טוענים את הלוויין הזה
+    let isFirstLoad = true;
 
     const fetchPosition = async () => {
       try {
         const response = await fetch("http://127.0.0.1:8000/api/v1/position", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(tleData), // שימוש במידע שהגיע מהאבא
+          body: JSON.stringify(tleData),
         });
 
         const data = await response.json();
@@ -27,6 +29,20 @@ const SatelliteEntity = ({ tleData }) => {
         );
 
         setPosition(cesiumPosition);
+
+        // --- הוספת הטיסה האוטומטית ---
+        if (isFirstLoad && viewer) {
+          viewer.camera.flyTo({
+            destination: Cartesian3.fromDegrees(
+              data.longitude,
+              data.latitude,
+              15000000 // גובה המצלמה (15,000 ק"מ) - כדי לראות את כל כדור הארץ
+            ),
+            duration: 2, // משך הטיסה בשניות
+          });
+          isFirstLoad = false; // כדי שלא יקפיץ את המצלמה בכל רענון של 3 שניות
+        }
+        // ---------------------------
       } catch (error) {
         console.error("Error:", error);
       }
@@ -36,7 +52,7 @@ const SatelliteEntity = ({ tleData }) => {
     const interval = setInterval(fetchPosition, 3000);
 
     return () => clearInterval(interval);
-  }, [tleData]); // חשוב! הרץ מחדש את האפקט בכל פעם ש-tleData משתנה
+  }, [tleData, viewer]); // הוספנו את viewer לתלויות
 
   if (!position) return null;
 
