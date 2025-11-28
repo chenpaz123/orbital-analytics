@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  # --- שירות ה-Backend ---
+  backend:
+    build: . # בנה מה-Dockerfile בתיקייה הנוכחית
+    ports:
+      - "8000:8000" # חשוף את פורט 8000 החוצה
+    volumes:
+      - ./app:/app/app # (אופציונלי) מאפשר עריכת קוד בלייב בלי לבנות מחדש
+
+  # --- שירות ה-Frontend ---
+  frontend:
+    build: ./frontend # בנה מה-Dockerfile בתיקיית frontend
+    ports:
+      - "5173:5173" # חשוף את פורט 5173 החוצה
+    volumes:
+      - ./frontend/src:/app/src # מאפשר עריכת קוד React בלייב
+    depends_on:
+      - backend # ודא שה-Backend עולה קודם
